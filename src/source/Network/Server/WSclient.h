@@ -2207,6 +2207,7 @@ typedef struct
 //----------------------------------------------------------------------------
 // GC [0xB3]
 //----------------------------------------------------------------------------
+#pragma pack(push, 1)
 typedef struct
 {
     PREQUEST_DEFAULT_SUBCODE    m_Header;
@@ -2262,6 +2263,14 @@ typedef struct
     char		szGuildName[8];
     INT			iGuildScore;
 } PMSG_CSATTKGUILDLIST, * LPPMSG_CSATTKGUILDLIST;
+#pragma pack(pop)
+
+static_assert(sizeof(PMSG_ANS_NPCDBLIST) == 9);
+static_assert(sizeof(PMSG_NPCDBLIST) == 27);
+static_assert(sizeof(PMSG_ANS_CSREGGUILDLIST) == 9);
+static_assert(sizeof(PMSG_CSREGGUILDLIST) == 14);
+static_assert(sizeof(PMSG_ANS_CSATTKGUILDLIST) == 9);
+static_assert(sizeof(PMSG_CSATTKGUILDLIST) == 14);
 
 typedef struct
 {

@@ -11076,9 +11076,14 @@ void ReceiveHuntZoneEnter(const BYTE* ReceiveBuffer)
     }
 }
 
-void ReceiveBCNPCList(const BYTE* ReceiveBuffer)
+void ReceiveBCNPCList(std::span<const BYTE> ReceiveBuffer)
 {
-    auto Data = (LPPMSG_ANS_NPCDBLIST)ReceiveBuffer;
+    auto Data = safe_cast<PMSG_ANS_NPCDBLIST>(ReceiveBuffer, "PMSG_ANS_NPCDBLIST");
+    if (!Data)
+    {
+        return;
+    }
+
     int Offset = sizeof(PMSG_ANS_NPCDBLIST);
 
     switch (Data->btResult)
@@ -11090,7 +11095,13 @@ void ReceiveBCNPCList(const BYTE* ReceiveBuffer)
     {
         for (int i = 0; i < Data->iCount; ++i)
         {
-            auto pNpcInfo = (LPPMSG_NPCDBLIST)(ReceiveBuffer + Offset);
+            auto pNpcInfo = safe_cast<PMSG_NPCDBLIST>(
+                ReceiveBuffer.subspan(Offset), "PMSG_NPCDBLIST");
+            if (!pNpcInfo)
+            {
+                return;
+            }
+
             g_SenatusInfo.SetNPCInfo(pNpcInfo);
             Offset += sizeof(PMSG_NPCDBLIST);
         }
@@ -11102,9 +11113,22 @@ void ReceiveBCNPCList(const BYTE* ReceiveBuffer)
     }
 }
 
-void ReceiveBCDeclareGuildList(const BYTE* ReceiveBuffer)
+static DWORD ReadCastleSiegeGuildMarkCount(const PMSG_CSREGGUILDLIST& guild)
 {
-    auto Data = (LPPMSG_ANS_CSREGGUILDLIST)ReceiveBuffer;
+    return static_cast<DWORD>(guild.btRegMarks1) << 24
+        | static_cast<DWORD>(guild.btRegMarks2) << 16
+        | static_cast<DWORD>(guild.btRegMarks3) << 8
+        | guild.btRegMarks4;
+}
+
+void ReceiveBCDeclareGuildList(std::span<const BYTE> ReceiveBuffer)
+{
+    auto Data = safe_cast<PMSG_ANS_CSREGGUILDLIST>(ReceiveBuffer, "PMSG_ANS_CSREGGUILDLIST");
+    if (!Data)
+    {
+        return;
+    }
+
     int Offset = sizeof(PMSG_ANS_CSREGGUILDLIST);
 
     switch (Data->btResult)
@@ -11117,19 +11141,20 @@ void ReceiveBCDeclareGuildList(const BYTE* ReceiveBuffer)
         g_pGuardWindow->ClearDeclareGuildList();
         for (int i = 0; i < Data->iCount; ++i)
         {
-            auto pData2 = (LPPMSG_CSREGGUILDLIST)(ReceiveBuffer + Offset);
-
-            // WTF - why not just use an int?
-            DWORD dwMarkCount;
-            auto* pMarkCount = (BYTE*)&dwMarkCount;
-            *pMarkCount++ = pData2->btRegMarks4;
-            *pMarkCount++ = pData2->btRegMarks3;
-            *pMarkCount++ = pData2->btRegMarks2;
-            *pMarkCount++ = pData2->btRegMarks1;
+            auto pData2 = safe_cast<PMSG_CSREGGUILDLIST>(
+                ReceiveBuffer.subspan(Offset), "PMSG_CSREGGUILDLIST");
+            if (!pData2)
+            {
+                return;
+            }
 
             wchar_t guildName[MAX_GUILDNAME + 1]{};
             CMultiLanguage::ConvertFromUtf8(guildName, pData2->szGuildName, MAX_GUILDNAME);
-            g_pGuardWindow->AddDeclareGuildList(guildName, dwMarkCount, pData2->btIsGiveUp, pData2->btSeqNum);
+            g_pGuardWindow->AddDeclareGuildList(
+                guildName,
+                ReadCastleSiegeGuildMarkCount(*pData2),
+                pData2->btIsGiveUp,
+                pData2->btSeqNum);
 
             Offset += sizeof(PMSG_CSREGGUILDLIST);
         }
@@ -11139,9 +11164,14 @@ void ReceiveBCDeclareGuildList(const BYTE* ReceiveBuffer)
     }
 }
 
-void ReceiveBCGuildList(const BYTE* ReceiveBuffer)
+void ReceiveBCGuildList(std::span<const BYTE> ReceiveBuffer)
 {
-    auto Data = (LPPMSG_ANS_CSATTKGUILDLIST)ReceiveBuffer;
+    auto Data = safe_cast<PMSG_ANS_CSATTKGUILDLIST>(ReceiveBuffer, "PMSG_ANS_CSATTKGUILDLIST");
+    if (!Data)
+    {
+        return;
+    }
+
     int Offset = sizeof(PMSG_ANS_CSATTKGUILDLIST);
 
     switch (Data->btResult)
@@ -11154,7 +11184,13 @@ void ReceiveBCGuildList(const BYTE* ReceiveBuffer)
         g_pGuardWindow->ClearGuildList();
         for (int i = 0; i < Data->iCount; ++i)
         {
-            auto pData2 = (LPPMSG_CSATTKGUILDLIST)(ReceiveBuffer + Offset);
+            auto pData2 = safe_cast<PMSG_CSATTKGUILDLIST>(
+                ReceiveBuffer.subspan(Offset), "PMSG_CSATTKGUILDLIST");
+            if (!pData2)
+            {
+                return;
+            }
+
             wchar_t guildName[MAX_GUILDNAME + 1]{};
             CMultiLanguage::ConvertFromUtf8(guildName, pData2->szGuildName, MAX_GUILDNAME);
 
@@ -14204,13 +14240,13 @@ static void ProcessPacket(const BYTE* ReceiveBuffer, int32_t Size)
     break;
 
     case 0xB3:
-        ReceiveBCNPCList(ReceiveBuffer);
+        ReceiveBCNPCList(received_span);
         break;
     case 0xB4:
-        ReceiveBCDeclareGuildList(ReceiveBuffer);
+        ReceiveBCDeclareGuildList(received_span);
         break;
     case 0xB5:
-        ReceiveBCGuildList(ReceiveBuffer);
+        ReceiveBCGuildList(received_span);
         break;
     case 0xB6:
         ReceiveGuildMemberLocation(ReceiveBuffer);
