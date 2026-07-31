@@ -140,6 +140,7 @@ namespace SEASON3B
         void RenderSeigeInfoTab();
         void RenderRegisterTab();
         void RenderRegisterInfoTab();
+        bool IsCastleOwnerGuild() const;
     };
 }
 

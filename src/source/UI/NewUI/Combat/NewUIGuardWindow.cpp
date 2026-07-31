@@ -476,8 +476,7 @@ void CNewUIGuardWindow::RenderRegisterTab()
         {
             if (!g_GuardsMan.HasRegistered())
             {
-                if (!wcscmp(GuildMark[Hero->GuildMarkIndex].UnionName, m_szOwnerGuild)
-                    || !wcscmp(GuildMark[Hero->GuildMarkIndex].GuildName, m_szOwnerGuild))
+                if (IsCastleOwnerGuild())
                 {
                     m_BtnProclaim.Lock();
                     m_BtnProclaim.ChangeImgColor(BUTTON_STATE_UP, RGBA(100, 100, 100, 255));
@@ -563,6 +562,18 @@ void CNewUIGuardWindow::RenderRegisterTab()
         g_pRenderText->RenderText(ptOrigin.x, ptOrigin.y, I18N::Game::SiegeIsOver, 190, 0, RT3_SORT_CENTER);
         break;
     }
+}
+
+bool CNewUIGuardWindow::IsCastleOwnerGuild() const
+{
+    if (!m_szOwnerGuild[0])
+    {
+        return false;
+    }
+
+    const auto& heroGuildMark = GuildMark[Hero->GuildMarkIndex];
+    return !wcscmp(heroGuildMark.UnionName, m_szOwnerGuild)
+        || !wcscmp(heroGuildMark.GuildName, m_szOwnerGuild);
 }
 
 void CNewUIGuardWindow::RenderRegisterInfoTab()
