@@ -59,6 +59,7 @@ namespace battleCastle
 
     static float LastArrowEffectInStampRoom = 0.0f;
     static constexpr float ArrowEffectInStampRoomInterval = 400; // every 400 ms
+    static constexpr float CrownSwitchHiddenOffset = 100.f;
 
     std::queue<BuildTime>   g_qBuildTimeLocation;
 
@@ -74,10 +75,35 @@ namespace battleCastle
     {
         return g_bBattleCastleStart;
     }
+
+    static bool IsCrownSwitch(const CHARACTER& character)
+    {
+        return character.MonsterIndex == MONSTER_CROWN_SWITCH1
+            || character.MonsterIndex == MONSTER_CROWN_SWITCH2;
+    }
+
+    static void UpdateCrownSwitchVisibility(bool battleStarted)
+    {
+        for (int i = 0; i < MAX_CHARACTERS_CLIENT; ++i)
+        {
+            CHARACTER& character = CharactersClient[i];
+            if (!character.Object.Live || !IsCrownSwitch(character))
+            {
+                continue;
+            }
+
+            const float visibleHeight = character.Object.Velocity;
+            character.Object.Position[2] = battleStarted
+                ? visibleHeight
+                : visibleHeight - CrownSwitchHiddenOffset;
+        }
+    }
+
     void SetBattleCastleStart(bool bResult)
     {
         g_bBattleCastleStartBackup = g_bBattleCastleStart;
         g_bBattleCastleStart = bResult;
+        UpdateCrownSwitchVisibility(g_bBattleCastleStart);
 
         if ( /*g_bBattleCastleStart!=g_bBattleCastleStartBackup && */ gMapManager.WorldActive != -1 && gMapManager.InBattleCastle())
         {
@@ -378,54 +404,54 @@ namespace battleCastle
         CreateObject(MODEL_BATTLE_GUARD2, Position, Angle);
     }
 
-    bool    SettingBattleFormation(CHARACTER* c, eBuffState state)
+    static int GetBattleFormationPart(eBuffState state)
     {
-        if (gMapManager.InBattleCastle() == false)  return false;
+        switch (state)
+        {
+        case eBuff_CastleRegimentDefense:
+            return PARTS_DEFENSE_TEAM_MARK;
+        case eBuff_CastleRegimentAttack1:
+            return PARTS_ATTACK_TEAM_MARK;
+        case eBuff_CastleRegimentAttack2:
+            return PARTS_ATTACK_TEAM_MARK2;
+        case eBuff_CastleRegimentAttack3:
+            return PARTS_ATTACK_TEAM_MARK3;
+        default:
+            return 0;
+        }
+    }
 
-        if (state == eBuff_CastleRegimentAttack1)
-        {
-            if (c->EtcPart == PARTS_DEFENSE_TEAM_MARK)
-            {
-                DeleteParts(c);
-            }
-            c->EtcPart = PARTS_ATTACK_TEAM_MARK;
-        }
+    static bool IsBattleFormationPart(int part)
+    {
+        return part >= PARTS_ATTACK_TEAM_MARK
+            && part <= PARTS_DEFENSE_KING_TEAM_MARK;
+    }
 
-        else if (state == eBuff_CastleRegimentAttack2)
+    bool SettingBattleFormation(CHARACTER* c, eBuffState state)
+    {
+        if (!gMapManager.InBattleCastle() || c == nullptr)
         {
-            if (c->EtcPart == PARTS_DEFENSE_TEAM_MARK)
-            {
-                DeleteParts(c);
-            }
-            c->EtcPart = PARTS_ATTACK_TEAM_MARK2;
-        }
-        else if (state == eBuff_CastleRegimentAttack3)
-        {
-            if (c->EtcPart == PARTS_DEFENSE_TEAM_MARK)
-            {
-                DeleteParts(c);
-            }
-            c->EtcPart = PARTS_ATTACK_TEAM_MARK3;
-        }
-        else if (state == eBuff_CastleRegimentDefense)
-        {
-            if (c->EtcPart == PARTS_ATTACK_TEAM_MARK
-                || c->EtcPart == PARTS_ATTACK_TEAM_MARK2
-                || c->EtcPart == PARTS_ATTACK_TEAM_MARK3
-                )
-            {
-                DeleteParts(c);
-            }
-            c->EtcPart = PARTS_DEFENSE_TEAM_MARK;
-        }
-        else if (c->EtcPart == PARTS_ATTACK_TEAM_MARK || c->EtcPart == PARTS_DEFENSE_TEAM_MARK
-            || c->EtcPart == PARTS_ATTACK_TEAM_MARK2
-            || c->EtcPart == PARTS_ATTACK_TEAM_MARK3
-            )
-        {
-            DeleteParts(c);
             return false;
         }
+
+        const int formationPart = GetBattleFormationPart(state);
+        if (formationPart == 0)
+        {
+            if (IsBattleFormationPart(c->EtcPart))
+            {
+                DeleteParts(c);
+                c->EtcPart = 0;
+            }
+
+            return false;
+        }
+
+        if (c->EtcPart != 0 && c->EtcPart != formationPart)
+        {
+            DeleteParts(c);
+        }
+
+        c->EtcPart = formationPart;
         return true;
     }
 
@@ -466,27 +492,18 @@ namespace battleCastle
         }
     }
 
-    void    DeleteBattleFormation(CHARACTER* c, eBuffState state)
+    void DeleteBattleFormation(CHARACTER* c, eBuffState state)
     {
-        if (gMapManager.InBattleCastle() == false)  return;
-
-        if (eBuff_CastleRegimentAttack1 != state || eBuff_CastleRegimentAttack2 != state
-            || eBuff_CastleRegimentAttack3 != state || eBuff_CastleRegimentDefense != state)
+        if (!gMapManager.InBattleCastle()
+            || c == nullptr
+            || GetBattleFormationPart(state) == 0
+            || !IsBattleFormationPart(c->EtcPart))
         {
             return;
         }
 
-        OBJECT* o = &c->Object;
-
-        if (g_isCharacterBuff(o, eBuff_CastleRegimentAttack1) || g_isCharacterBuff(o, eBuff_CastleRegimentAttack2)
-            || g_isCharacterBuff(o, eBuff_CastleRegimentAttack3) || g_isCharacterBuff(o, eBuff_CastleRegimentDefense))
-        {
-            if (c->EtcPart == PARTS_DEFENSE_TEAM_MARK || c->EtcPart == PARTS_ATTACK_TEAM_MARK
-                || c->EtcPart == PARTS_ATTACK_TEAM_MARK2 || c->EtcPart == PARTS_ATTACK_TEAM_MARK3)
-            {
-                DeleteParts(c);
-            }
-        }
+        DeleteParts(c);
+        c->EtcPart = 0;
     }
 
     void ChangeBattleFormation(wchar_t* GuildName, bool bEffect)
